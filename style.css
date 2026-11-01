@@ -46,6 +46,17 @@ input[type=file]{font:inherit;font-size:13px;color:var(--fg)}
 #dl{font:inherit;font-weight:800;font-size:16px;padding:12px;border:0;border-radius:10px;background:var(--accent);color:var(--ink);cursor:pointer}
 #dl:disabled{opacity:.6;cursor:wait}
 
+.styles-pick{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.styles-pick label span,.tabs label span{display:block;text-align:center;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:7px 6px;font-weight:800;font-size:13px;background:var(--panel2)}
+.styles-pick input,.tabs input{position:absolute;opacity:0;pointer-events:none}
+.styles-pick input:checked+span{background:var(--mint);color:var(--ink);border-color:var(--mint)}
+.tabs input:checked+span{background:var(--accent);color:var(--ink);border-color:var(--accent)}
+.styles-pick input:focus-visible+span,.tabs input:focus-visible+span{outline:2px solid var(--accent)}
+.pv-head{position:sticky;top:0;z-index:2;background:var(--ink);padding:8px 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pv-label{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tabs label span{padding:6px 12px}
+.loading{font-size:13px;font-weight:800;color:var(--mint)}
 .preview{display:flex;flex-direction:column;gap:12px;min-width:0}
 .preview h2{font-family:var(--display);font-weight:400;font-size:22px;margin:10px 0 0}
 .preview h2 small{font-family:var(--body);font-size:13px;color:var(--muted);font-weight:700;margin-left:6px}

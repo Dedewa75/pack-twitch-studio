@@ -6,7 +6,7 @@
 <title>Pack Twitch Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Nunito:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Creepster&family=Fredoka:wght@600;700&family=Nunito:wght@400;700;800&family=Orbitron:wght@700;900&family=Press+Start+2P&family=VT323&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -85,6 +85,12 @@
       <div id="panelNames" class="stack"></div>
     </fieldset>
 
+    <fieldset>
+      <legend>6. Styles dans le ZIP</legend>
+      <p class="hint">Le ZIP contient le pack complet dans chaque style coché. Le client choisit son préféré.</p>
+      <div id="zipStyles" class="styles-pick"></div>
+    </fieldset>
+
     <div class="actions">
       <button type="button" id="dl">Télécharger le pack (ZIP)</button>
       <p class="hint" id="status" role="status"></p>
@@ -92,6 +98,11 @@
   </form>
 
   <section class="preview" aria-label="Aperçu du pack">
+    <div class="pv-head">
+      <span class="pv-label">Aperçu du style</span>
+      <div id="pvTabs" class="tabs" role="radiogroup" aria-label="Style affiché dans l'aperçu"></div>
+      <span id="pvLoading" class="loading" hidden>Génération…</span>
+    </div>
     <h2>Bannière <small>1200 × 480</small></h2>
     <div id="pvBanner" class="frame"></div>
 

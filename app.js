@@ -1,4 +1,4 @@
-/* Pack Twitch Studio — génère un pack Twitch (PNG) à partir des infos du formulaire */
+/* Pack Twitch Studio — génère des packs Twitch complets (PNG) dans plusieurs styles */
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -27,21 +27,21 @@ function hexToRgb(hex) {
   const n = parseInt(c, 16);
   return [n >> 16, (n >> 8) & 255, n & 255];
 }
-function shade(hex, amt) {
-  const t = amt < 0 ? 0 : 255, p = Math.abs(amt);
-  const [r, g, b] = hexToRgb(hex).map(v => Math.round((t - v) * p + v));
-  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-}
+const toHex = ([r, g, b]) => '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+function mix(a, b, t) { const A = hexToRgb(a), B = hexToRgb(b); return toHex(A.map((v, i) => Math.round(v + (B[i] - v) * t))); }
+function shade(hex, amt) { return mix(hex, amt < 0 ? '#000000' : '#ffffff', Math.abs(amt)); }
 function rgba(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
 function lum(hex) {
   const [r, g, b] = hexToRgb(hex).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 const textOn = hex => lum(hex) > 0.4 ? '#1a1420' : '#ffffff';
+const bright = (hex, fallback) => lum(hex) < 0.12 ? fallback : hex;
+const rnd = i => { const v = Math.sin(i * 12.9898 + 4.1) * 43758.5453; return v - Math.floor(v); };
 
-/* ---------- Dessins SVG ---------- */
+/* ---------- Dessins SVG de base ---------- */
 const heart = (x, y, s, fill) => `<path d="M${x} ${y + s * .9} C${x - s * 1.6} ${y - s * .2} ${x - s * .6} ${y - s * 1.3} ${x} ${y - s * .4} C${x + s * .6} ${y - s * 1.3} ${x + s * 1.6} ${y - s * .2} ${x} ${y + s * .9}Z" fill="${fill}" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/>`;
-const star = (x, y, r) => `<path d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r}Z" fill="#fff" stroke="${INK}" stroke-width="1.5"/>`;
+const star = (x, y, r, fill = '#fff') => `<path d="M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r}Z" fill="${fill}" stroke="${INK}" stroke-width="1.5"/>`;
 const FONT_SVG = `font-family="Arial Black, Arial, sans-serif" font-weight="900"`;
 
 function headParts(P) {
@@ -103,7 +103,6 @@ function expressions(P) {
 function ggBadge() { return `<circle cx="98" cy="98" r="18" fill="#ffb547" ${S}/><text x="98" y="104" text-anchor="middle" ${FONT_SVG} font-size="15" fill="${INK}">GG</text>`; }
 function zzz() { return `<text x="92" y="30" ${FONT_SVG} font-size="17" fill="#5ee6c1" stroke="${INK}" stroke-width="1">Z</text><text x="104" y="16" ${FONT_SVG} font-size="12" fill="#5ee6c1" stroke="${INK}" stroke-width="1">z</text>`; }
 
-/* Effets autour de l'image du client (pas de vraies expressions possibles) */
 function imageFx(expr) {
   return ({
     happy: star(6, 16, 9) + star(114, 26, 7) + star(108, 108, 7),
@@ -119,63 +118,17 @@ function imageFx(expr) {
   })[expr] || '';
 }
 
-function charSVG(expr, st, px = 240) {
-  let inner;
-  if (st.mode === 'image' && st.img) {
-    inner = `<image href="${st.img}" x="6" y="6" width="108" height="108" preserveAspectRatio="xMidYMid meet"/>${imageFx(expr)}`;
-  } else {
-    const P = { fur: st.fur, furD: shade(st.fur, -0.25), belly: st.belly };
-    const A = ANIMALS[st.animal](P);
-    const E = expressions(P)[expr];
-    const cheeks = E.cheeks ?? `<ellipse cx="30" cy="78" rx="10" ry="7" fill="${PINK}" opacity=".75"/><ellipse cx="90" cy="78" rx="10" ry="7" fill="${PINK}" opacity=".75"/>`;
-    inner = `${A.back || ''}${headParts(P)}${A.mask || ''}${cheeks}${A.front || ''}${A.tuft || ''}${A.nose}${E.face}${A.top || ''}${E.fx || ''}`;
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 136 136" width="${px}" height="${px}">${inner}</svg>`;
-}
-
-function badgeSVG(i, st) {
-  const fills = [st.sec, st.accent, st.accent, '#d7deea', '#ffc84a', '#ffc84a'];
-  const f = fills[i];
-  const dy = i === 5 ? 6 : 0;
-  let g = '';
-  if (i === 2 || i === 3) g += `<circle cx="36" cy="38" r="32" fill="none" stroke="${i === 2 ? st.sec : '#d7deea'}" stroke-width="4" stroke-dasharray="6 5"/>`;
-  g += `<g transform="translate(0 ${dy})">
-    <path d="M36 32 C48 32 57 44 55 52 C53 60 44 58 36 58 C28 58 19 60 17 52 C15 44 24 32 36 32Z" fill="${f}" ${S}/>
-    <ellipse cx="17" cy="30" rx="6.5" ry="8.5" transform="rotate(-20 17 30)" fill="${f}" ${S}/>
-    <ellipse cx="29" cy="19" rx="6.5" ry="8.5" transform="rotate(-6 29 19)" fill="${f}" ${S}/>
-    <ellipse cx="43" cy="19" rx="6.5" ry="8.5" transform="rotate(6 43 19)" fill="${f}" ${S}/>
-    <ellipse cx="55" cy="30" rx="6.5" ry="8.5" transform="rotate(20 55 30)" fill="${f}" ${S}/>
-    <path d="M27 42 Q31 37 36 37" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/></g>`;
-  if (i === 5) g += `<path d="M22 14 L25 0 L36 9 L47 0 L50 14Z" fill="#ffc84a" ${S}/><circle cx="36" cy="9" r="2.5" fill="#ff7a9c"/>`;
-  if (i >= 4) g += star(62, 14, 8) + star(9, 52, 5);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -4 76 76" width="144" height="144">${g}</svg>`;
-}
-
-/* ---------- Rendu canvas ---------- */
-function loadSVG(svg) {
-  return new Promise((res, rej) => {
-    const img = new Image();
-    img.onload = () => res(img);
-    img.onerror = () => rej(new Error('Image SVG illisible'));
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  });
-}
+/* ---------- Canvas : outils ---------- */
 function newCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
-function drawScaled(img, size) {
-  const c = newCanvas(size, size), x = c.getContext('2d');
-  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
-  x.drawImage(img, 0, 0, size, size);
-  return c;
-}
 function rrect(x, X, Y, W, H, r) {
   x.beginPath();
   if (x.roundRect) { x.roundRect(X, Y, W, H, r); return; }
   x.moveTo(X + r, Y); x.arcTo(X + W, Y, X + W, Y + H, r); x.arcTo(X + W, Y + H, X, Y + H, r);
   x.arcTo(X, Y + H, X, Y, r); x.arcTo(X, Y, X + W, Y, r); x.closePath();
 }
-function fitFont(x, text, family, weight, max, min, width) {
+function fitFont(x, text, font, max, min, width) {
   let size = max;
-  do { x.font = `${weight} ${size}px ${family}`; if (x.measureText(text).width <= width) break; size -= 2; } while (size > min);
+  do { x.font = font(size); if (x.measureText(text).width <= width) break; size -= 2; } while (size > min);
   return size;
 }
 function wrap(x, text, width, maxLines) {
@@ -193,73 +146,308 @@ function dots(x, w, h, color, step, r) {
   x.fillStyle = color;
   for (let yy = step / 2; yy < h; yy += step) for (let xx = step / 2; xx < w; xx += step) { x.beginPath(); x.arc(xx, yy, r, 0, Math.PI * 2); x.fill(); }
 }
-const DISPLAY = '"Bagel Fat One", "Arial Black", sans-serif';
-const BODY = 'Nunito, Arial, sans-serif';
+function drips(x, W, top, color, count, maxLen, seed) {
+  x.fillStyle = color;
+  x.fillRect(0, 0, W, top);
+  for (let i = 0; i < count; i++) {
+    const cx = rnd(seed + i) * W, w = 8 + rnd(seed + i + 50) * 18, len = maxLen * (0.3 + rnd(seed + i + 99) * 0.7);
+    x.beginPath(); x.moveTo(cx - w / 2, top - 2); x.lineTo(cx - w / 2, top + len - w / 2);
+    x.arc(cx, top + len - w / 2, w / 2, Math.PI, 0, true); x.lineTo(cx + w / 2, top - 2); x.closePath(); x.fill();
+  }
+}
 
-function drawBanner(st, charImg) {
+/* ---------- Styles ---------- */
+const GLOW = id => `<defs><filter id="${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+const DRIP_SVG = `<path d="M40 103 q3 12 0 17 q-4 -5 0 -17Z M72 105 q3 9 0 13 q-4 -4 0 -13Z" fill="#8a0b0b" stroke="#120808" stroke-width="1.5"/>`;
+
+const STYLES = {
+  classique: {
+    label: 'Classique', folder: 'classique',
+    P: st => ({ fur: st.fur, belly: st.belly }),
+    T: () => ({ ink: INK, pink: PINK, mouth: MOUTH, white: '#fff' }),
+    font: s => `400 ${s}px "Bagel Fat One", "Arial Black", sans-serif`,
+    body: s => `700 ${s}px Nunito, Arial, sans-serif`,
+    bgColor: st => st.bg,
+    bg(x, W, H, st) {
+      const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, st.bg); g.addColorStop(1, shade(st.bg, -0.4));
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      dots(x, W, H, rgba(st.accent, 0.1), W / 33, W / 400);
+      x.save(); x.translate(W * 0.72, H * 0.98); x.rotate(-0.32);
+      x.fillStyle = st.sec; x.fillRect(-W * 0.6, -H * 0.17, W * 1.4, H * 0.13);
+      x.fillStyle = st.accent; x.fillRect(-W * 0.6, -H * 0.012, W * 1.4, H * 0.025);
+      x.restore();
+    },
+    title(x, t, X, Y, size, st) { x.lineJoin = 'round'; x.lineWidth = Math.max(6, size / 12); x.strokeStyle = '#1a1420'; x.strokeText(t, X, Y); x.fillStyle = st.accent; x.fillText(t, X, Y); },
+    text: st => textOn(st.bg), eyebrow: st => st.sec,
+    chip(x, X, Y, w, h, t, st) { rrect(x, X, Y, w, h, h / 2); x.fillStyle = st.sec; x.fill(); x.fillStyle = textOn(st.sec); x.fillText(t, X + h * 0.36, Y + h * 0.68); },
+    panel(x, W, H, i, st) {
+      const bg = i % 2 ? st.sec : st.accent;
+      rrect(x, 0, 0, W, H, 14); x.fillStyle = bg; x.fill();
+      x.save(); rrect(x, 0, 0, W, H, 14); x.clip();
+      x.strokeStyle = 'rgba(0,0,0,.18)'; x.lineWidth = 6; x.setLineDash([2, 10]); x.lineCap = 'round';
+      x.beginPath(); x.arc(W - 10, 10, 40, 0, Math.PI * 2); x.stroke(); x.restore(); x.setLineDash([]);
+      return textOn(bg);
+    },
+    dot: st => st.accent
+  },
+
+  kawaii: {
+    label: 'Kawaii pastel', folder: 'kawaii-pastel',
+    P: st => ({ fur: mix(st.fur, '#ffffff', 0.45), belly: '#fffaf4' }),
+    T: () => ({ ink: '#6a4a72', pink: '#ffb3cc', mouth: '#c4557e', white: '#fff' }),
+    under: `<path d="M22 76 l3 -6 M28 77 l3 -6 M34 78 l3 -6 M84 78 l3 -6 M90 77 l3 -6 M96 76 l3 -6" stroke="#ff7aa8" stroke-width="2" stroke-linecap="round"/>`,
+    over: star(4, 96, 6, '#fff3a8') + star(116, 100, 5, '#c9f2ff'),
+    font: s => `700 ${s}px Fredoka, "Arial Rounded MT Bold", sans-serif`,
+    body: s => `600 ${s}px Fredoka, Nunito, Arial, sans-serif`,
+    bgColor: st => mix(st.accent, '#ffffff', 0.82),
+    bg(x, W, H, st) {
+      const base = mix(st.accent, '#ffffff', 0.82);
+      const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, base); g.addColorStop(1, mix(st.sec, '#ffffff', 0.7));
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      x.fillStyle = 'rgba(255,255,255,.85)';
+      [[0.08, 0.2], [0.55, 0.12], [0.86, 0.3], [0.3, 0.85]].forEach(([a, b], i) => {
+        const cx = a * W, cy = b * H, r = W * 0.035 * (1 + rnd(i) * 0.6);
+        [[0, 0, 1], [-1.1, 0.3, 0.75], [1.1, 0.3, 0.8], [0.4, -0.5, 0.8]].forEach(([dx, dy, k]) => { x.beginPath(); x.arc(cx + dx * r, cy + dy * r, r * k, 0, Math.PI * 2); x.fill(); });
+      });
+      for (let i = 0; i < 26; i++) { x.fillStyle = i % 2 ? rgba('#ffffff', 0.9) : rgba(mix(st.accent, '#ff7aa8', 0.5), 0.5); x.beginPath(); x.arc(rnd(i + 7) * W, rnd(i + 31) * H, W * 0.004 + rnd(i) * W * 0.004, 0, Math.PI * 2); x.fill(); }
+    },
+    title(x, t, X, Y, size, st) {
+      x.lineJoin = 'round'; x.lineWidth = Math.max(8, size / 6); x.strokeStyle = '#ffffff'; x.strokeText(t, X, Y);
+      x.fillStyle = mix(st.accent, '#c4557e', 0.35); x.fillText(t, X, Y);
+    },
+    text: () => '#6a4a72', eyebrow: () => '#c4557e',
+    chip(x, X, Y, w, h, t, st) { rrect(x, X, Y, w, h, h / 2); x.fillStyle = mix(st.sec, '#ffffff', 0.35); x.fill(); x.lineWidth = 3; x.strokeStyle = '#ffffff'; x.stroke(); x.fillStyle = '#6a4a72'; x.fillText(t, X + h * 0.36, Y + h * 0.68); },
+    panel(x, W, H, i, st) {
+      const bg = mix(i % 2 ? st.sec : st.accent, '#ffffff', 0.5);
+      rrect(x, 0, 0, W, H, 22); x.fillStyle = bg; x.fill();
+      rrect(x, 6, 6, W - 12, H - 12, 17); x.strokeStyle = '#ffffff'; x.lineWidth = 3; x.setLineDash([8, 6]); x.stroke(); x.setLineDash([]);
+      return '#6a4a72';
+    },
+    dot: st => mix(st.accent, '#c4557e', 0.35)
+  },
+
+  neon: {
+    label: 'Néon gaming', folder: 'neon-gaming',
+    P: () => ({ fur: '#140a24', belly: '#1f1238' }),
+    T: st => ({ ink: bright(st.sec, '#3df5ff'), pink: bright(st.accent, '#ff3df2'), mouth: '#2a0f3d', white: '#ffffff' }),
+    wrap: inner => `${GLOW('glow')}<g filter="url(#glow)">${inner}</g>`,
+    font: s => `900 ${s}px Orbitron, "Arial Black", sans-serif`,
+    body: s => `700 ${s}px Orbitron, Arial, sans-serif`,
+    bgColor: () => '#07040d',
+    bg(x, W, H, st) {
+      const A = bright(st.sec, '#3df5ff'), B = bright(st.accent, '#ff3df2');
+      x.fillStyle = '#07040d'; x.fillRect(0, 0, W, H);
+      const g = x.createRadialGradient(W * 0.75, H * 0.6, 10, W * 0.75, H * 0.6, W * 0.6); g.addColorStop(0, rgba(B, 0.28)); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      const hz = H * 0.66, vx = W * 0.6;
+      x.strokeStyle = rgba(A, 0.45); x.lineWidth = Math.max(1, W / 800);
+      for (let i = -14; i <= 14; i++) { x.beginPath(); x.moveTo(vx, hz); x.lineTo(vx + i * W * 0.09, H); x.stroke(); }
+      for (let k = 1; k < 9; k++) { const yy = hz + (H - hz) * Math.pow(k / 8, 1.8); x.beginPath(); x.moveTo(0, yy); x.lineTo(W, yy); x.stroke(); }
+      x.save(); x.shadowColor = A; x.shadowBlur = W / 60; x.strokeStyle = A; x.lineWidth = Math.max(2, W / 400);
+      x.beginPath(); x.moveTo(0, hz); x.lineTo(W, hz); x.stroke(); x.restore();
+    },
+    title(x, t, X, Y, size, st) {
+      const B = bright(st.accent, '#ff3df2');
+      x.save(); x.shadowColor = B; x.shadowBlur = size / 3; x.lineWidth = Math.max(3, size / 22); x.strokeStyle = B; x.strokeText(t, X, Y);
+      x.fillStyle = '#ffffff'; x.fillText(t, X, Y); x.restore();
+    },
+    text: () => '#e8e0ff', eyebrow: st => bright(st.sec, '#3df5ff'),
+    chip(x, X, Y, w, h, t, st) {
+      const A = bright(st.sec, '#3df5ff');
+      x.save(); x.shadowColor = A; x.shadowBlur = h / 3; rrect(x, X, Y, w, h, 8); x.lineWidth = 3; x.strokeStyle = A; x.stroke(); x.restore();
+      x.fillStyle = A; x.fillText(t, X + h * 0.36, Y + h * 0.68);
+    },
+    panel(x, W, H, i, st) {
+      const C = i % 2 ? bright(st.accent, '#ff3df2') : bright(st.sec, '#3df5ff');
+      rrect(x, 4, 4, W - 8, H - 8, 10); x.fillStyle = '#0d0718'; x.fill();
+      x.save(); x.shadowColor = C; x.shadowBlur = 14; x.lineWidth = 3; x.strokeStyle = C; rrect(x, 4, 4, W - 8, H - 8, 10); x.stroke(); x.restore();
+      return C;
+    },
+    dot: st => bright(st.sec, '#3df5ff')
+  },
+
+  pixel: {
+    label: 'Pixel art', folder: 'pixel-art', pixel: true,
+    P: st => ({ fur: st.fur, belly: st.belly }),
+    T: () => ({ ink: '#141018', pink: PINK, mouth: MOUTH, white: '#fff', swMul: 1.6 }),
+    font: s => `400 ${s}px "Press Start 2P", monospace`,
+    body: s => `400 ${s * 1.35}px VT323, "Courier New", monospace`,
+    bgColor: st => st.bg,
+    bg(x, W, H, st) {
+      x.fillStyle = st.bg; x.fillRect(0, 0, W, H);
+      const b = Math.round(W / 40);
+      for (let yy = 0; yy < H; yy += b) for (let xx = 0; xx < W; xx += b) if (((xx + yy) / b) % 2 === 0) { x.fillStyle = rgba(shade(st.bg, 0.12), 1); x.fillRect(xx, yy, b, b); }
+      const gy = H - b * 3;
+      for (let xx = 0; xx < W; xx += b * 2) { x.fillStyle = st.sec; x.fillRect(xx, gy, b * 2, b * 3); x.fillStyle = shade(st.sec, -0.35); x.fillRect(xx, gy, b * 2, b * 0.5); x.fillRect(xx + b * 2 - b * 0.4, gy, b * 0.4, b * 3); }
+      for (let i = 0; i < 6; i++) { const cx = (0.08 + rnd(i) * 0.5) * W, cy = (0.08 + rnd(i + 9) * 0.25) * H; x.fillStyle = st.accent; x.fillRect(cx, cy, b * 0.5, b * 0.5); }
+    },
+    title(x, t, X, Y, size, st) { const o = Math.max(3, Math.round(size / 9)); x.fillStyle = '#000000'; x.fillText(t, X + o, Y + o); x.fillStyle = st.accent; x.fillText(t, X, Y); },
+    text: st => textOn(st.bg), eyebrow: st => st.sec,
+    chip(x, X, Y, w, h, t, st) { x.fillStyle = '#000000'; x.fillRect(X, Y, w, h); x.fillStyle = st.sec; x.fillRect(X + 4, Y + 4, w - 8, h - 8); x.fillStyle = textOn(st.sec); x.fillText(t, X + h * 0.36, Y + h * 0.7); },
+    panel(x, W, H, i, st) {
+      const bg = i % 2 ? st.sec : st.accent;
+      x.fillStyle = '#000000'; x.fillRect(0, 0, W, H); x.fillStyle = bg; x.fillRect(4, 4, W - 8, H - 8);
+      x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(4, 4, W - 8, 6); x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(4, H - 10, W - 8, 6);
+      return textOn(bg);
+    },
+    dot: st => st.accent
+  },
+
+  horreur: {
+    label: 'Horreur', folder: 'horreur',
+    P: st => ({ fur: mix(st.fur, '#7d8a6a', 0.6), belly: '#cfc8b0' }),
+    T: () => ({ ink: '#0e0808', pink: '#5b2d4a', mouth: '#3a0606', white: '#e8e0a8' }),
+    under: `<ellipse cx="42" cy="67" rx="11" ry="4" fill="#3a2436" opacity=".55"/><ellipse cx="78" cy="67" rx="11" ry="4" fill="#3a2436" opacity=".55"/>`,
+    over: `<path d="M72 33 L94 45" stroke="#0e0808" stroke-width="2.5" stroke-linecap="round"/><path d="M76 31 l-3 6 M82 34 l-3 6 M88 37 l-3 6 M94 41 l-3 6" stroke="#0e0808" stroke-width="2" stroke-linecap="round"/>` + DRIP_SVG,
+    imgWrap: inner => `<defs><filter id="dk"><feColorMatrix type="saturate" values="0.3"/></filter></defs><g filter="url(#dk)">${inner}</g>${DRIP_SVG}`,
+    font: s => `400 ${s}px Creepster, Impact, sans-serif`,
+    body: s => `700 ${s}px Nunito, Arial, sans-serif`,
+    bgColor: () => '#0c0405',
+    bg(x, W, H, st) {
+      const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1c080b'); g.addColorStop(1, '#050203');
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      for (let i = 0; i < 5; i++) { const cx = rnd(i + 3) * W, cy = (0.5 + rnd(i + 8) * 0.5) * H, r = W * (0.2 + rnd(i) * 0.2); const f = x.createRadialGradient(cx, cy, 0, cx, cy, r); f.addColorStop(0, 'rgba(220,210,200,.07)'); f.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = f; x.fillRect(0, 0, W, H); }
+      drips(x, W, H * 0.03, '#6e070c', Math.round(W / 70), H * 0.18, 11);
+    },
+    title(x, t, X, Y, size, st) { x.save(); x.shadowColor = '#b00010'; x.shadowBlur = size / 5; x.fillStyle = bright(st.accent, '#c8f04a'); x.fillText(t, X, Y); x.restore(); },
+    text: () => '#e6dccb', eyebrow: () => '#d63a3a',
+    chip(x, X, Y, w, h, t, st) { rrect(x, X, Y, w, h, 6); x.fillStyle = '#2a1215'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#8a0b0b'; x.stroke(); x.fillStyle = '#e6dccb'; x.fillText(t, X + h * 0.36, Y + h * 0.68); },
+    panel(x, W, H, i, st) {
+      rrect(x, 0, 0, W, H, 8); x.fillStyle = '#170a0c'; x.fill();
+      x.save(); rrect(x, 0, 0, W, H, 8); x.clip(); drips(x, W, 5, '#6e070c', 7, 26, 20 + i * 7); x.restore();
+      return bright(st.accent, '#c8f04a');
+    },
+    dot: () => '#8a0b0b'
+  }
+};
+const STYLE_KEYS = Object.keys(STYLES);
+
+/* ---------- Construction des SVG ---------- */
+function recolor(s, T) {
+  let out = s.replaceAll(INK, T.ink).replaceAll(PINK, T.pink).replaceAll(MOUTH, T.mouth).replaceAll('fill="#fff"', `fill="${T.white}"`);
+  if (T.swMul) out = out.replace(/stroke-width="([\d.]+)"/g, (m, v) => `stroke-width="${(parseFloat(v) * T.swMul).toFixed(1)}"`);
+  return out;
+}
+
+function charSVG(expr, st, sty, px = 240) {
+  const T = sty.T(st);
+  let inner;
+  if (st.mode === 'image' && st.img) {
+    inner = `<image href="${st.img}" x="6" y="6" width="108" height="108" preserveAspectRatio="xMidYMid meet"/>`;
+    if (sty.imgWrap) inner = sty.imgWrap(inner);
+    inner += imageFx(expr);
+  } else {
+    const P = sty.P(st); P.furD = shade(P.fur, -0.25);
+    const A = ANIMALS[st.animal](P);
+    const E = expressions(P)[expr];
+    const cheeks = E.cheeks ?? `<ellipse cx="30" cy="78" rx="10" ry="7" fill="${PINK}" opacity=".75"/><ellipse cx="90" cy="78" rx="10" ry="7" fill="${PINK}" opacity=".75"/>`;
+    inner = `${A.back || ''}${headParts(P)}${A.mask || ''}${sty.under || ''}${cheeks}${A.front || ''}${A.tuft || ''}${A.nose}${E.face}${A.top || ''}${sty.over || ''}${E.fx || ''}`;
+  }
+  inner = recolor(inner, T);
+  if (sty.wrap) inner = sty.wrap(inner);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 136 136" width="${px}" height="${px}">${inner}</svg>`;
+}
+
+function badgeSVG(i, st, sty) {
+  const base = [st.sec, st.accent, st.accent, '#d7deea', '#ffc84a', '#ffc84a'][i];
+  let T = sty.T(st), f = base, ring = i === 2 ? st.sec : '#d7deea';
+  if (sty === STYLES.kawaii) { f = mix(base, '#ffffff', 0.4); ring = mix(ring, '#ffffff', 0.3); }
+  if (sty === STYLES.horreur) { f = mix(base, '#4a4a3c', 0.45); ring = '#8a0b0b'; }
+  if (sty === STYLES.neon) { T = { ...T, ink: bright(base, '#3df5ff') }; f = '#140a24'; ring = bright(base, '#3df5ff'); }
+  const dy = i === 5 ? 6 : 0;
+  let g = '';
+  if (i === 2 || i === 3) g += `<circle cx="36" cy="38" r="32" fill="none" stroke="${ring}" stroke-width="4" stroke-dasharray="6 5"/>`;
+  g += `<g transform="translate(0 ${dy})">
+    <path d="M36 32 C48 32 57 44 55 52 C53 60 44 58 36 58 C28 58 19 60 17 52 C15 44 24 32 36 32Z" fill="${f}" ${S}/>
+    <ellipse cx="17" cy="30" rx="6.5" ry="8.5" transform="rotate(-20 17 30)" fill="${f}" ${S}/>
+    <ellipse cx="29" cy="19" rx="6.5" ry="8.5" transform="rotate(-6 29 19)" fill="${f}" ${S}/>
+    <ellipse cx="43" cy="19" rx="6.5" ry="8.5" transform="rotate(6 43 19)" fill="${f}" ${S}/>
+    <ellipse cx="55" cy="30" rx="6.5" ry="8.5" transform="rotate(20 55 30)" fill="${f}" ${S}/>
+    <path d="M27 42 Q31 37 36 37" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/></g>`;
+  if (i === 5) g += `<path d="M22 14 L25 0 L36 9 L47 0 L50 14Z" fill="${sty === STYLES.neon ? '#140a24' : '#ffc84a'}" ${S}/><circle cx="36" cy="9" r="2.5" fill="#ff7a9c"/>`;
+  if (i >= 4) g += star(62, 14, 8) + star(9, 52, 5);
+  if (sty === STYLES.horreur) g += `<path d="M30 60 q3 9 0 13 q-4 -4 0 -13Z M44 59 q2 6 0 9 q-3 -3 0 -9Z" fill="#8a0b0b"/>`;
+  g = recolor(g, T);
+  if (sty.wrap) g = sty.wrap(g);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -6 80 80" width="160" height="160">${g}</svg>`;
+}
+
+/* ---------- Rendu image ---------- */
+function loadSVG(svg) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error('Image SVG illisible'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+function drawScaled(src, size, smooth = true) {
+  const c = newCanvas(size, size), x = c.getContext('2d');
+  x.imageSmoothingEnabled = smooth; x.imageSmoothingQuality = 'high';
+  x.drawImage(src, 0, 0, size, size);
+  return c;
+}
+/* Pixel art : rendu en tout petit, alpha tranché net, puis agrandi sans lissage */
+function pixelBase(img, low) {
+  const c = drawScaled(img, low), x = c.getContext('2d');
+  const d = x.getImageData(0, 0, low, low);
+  for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] > 110 ? 255 : 0;
+  x.putImageData(d, 0, 0);
+  return c;
+}
+async function charArt(expr, st, sty, size, low) {
+  const img = await loadSVG(charSVG(expr, st, sty, Math.max(size, 240)));
+  return sty.pixel ? pixelBase(img, low) : img;
+}
+function drawArt(x, art, X, Y, size, sty) { x.imageSmoothingEnabled = !sty.pixel; x.drawImage(art, X, Y, size, size); x.imageSmoothingEnabled = true; }
+
+function drawBanner(st, sty, art) {
   const W = 1200, H = 480, c = newCanvas(W, H), x = c.getContext('2d');
-  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, st.bg); g.addColorStop(1, shade(st.bg, -0.4));
-  x.fillStyle = g; x.fillRect(0, 0, W, H);
-  dots(x, W, H, rgba(st.accent, 0.1), 36, 3);
-  x.save(); x.translate(860, 470); x.rotate(-0.32);
-  x.fillStyle = st.sec; x.fillRect(-700, -80, 1600, 64);
-  x.fillStyle = st.accent; x.fillRect(-700, -6, 1600, 12);
-  x.restore();
-  x.drawImage(charImg, 770, 40, 430, 430);
-
-  const left = 64, maxW = 660;
-  x.textBaseline = 'alphabetic'; x.lineJoin = 'round';
-  const size = fitFont(x, st.pseudo, DISPLAY, 400, 130, 44, maxW);
-  x.lineWidth = Math.max(6, size / 12); x.strokeStyle = '#1a1420';
-  const titleY = 220;
-  x.strokeText(st.pseudo, left, titleY); x.fillStyle = st.accent; x.fillText(st.pseudo, left, titleY);
-
-  x.font = `700 30px ${BODY}`; x.fillStyle = textOn(st.bg);
+  sty.bg(x, W, H, st);
+  drawArt(x, art, 770, 40, 430, sty);
+  const left = 64, maxW = 660, titleY = 220;
+  x.textBaseline = 'alphabetic';
+  const size = fitFont(x, st.pseudo, sty.font, sty.pixel ? 70 : 130, 24, maxW);
+  sty.title(x, st.pseudo, left, titleY, size, st);
+  x.font = sty.body(28); x.fillStyle = sty.text(st);
   wrap(x, st.slogan, maxW, 2).forEach((ln, i) => x.fillText(ln, left, titleY + 54 + i * 38));
-
-  const chips = [...st.days, st.heure].filter(Boolean);
   let cx = left; const cy = titleY + 140;
-  x.font = `800 24px ${BODY}`;
-  chips.forEach(t => {
+  x.font = sty.pixel ? sty.font(16) : sty.body(22);
+  [...st.days, st.heure].filter(Boolean).forEach(t => {
     const w = x.measureText(t).width + 32;
-    rrect(x, cx, cy, w, 44, 22); x.fillStyle = st.sec; x.fill();
-    x.fillStyle = textOn(st.sec); x.fillText(t, cx + 16, cy + 30);
+    sty.chip(x, cx, cy, w, 44, t, st);
     cx += w + 10;
   });
   return c;
 }
 
-function drawPanel(st, title, img, i) {
+function drawPanel(st, sty, title, art, i) {
   const W = 320, H = 100, c = newCanvas(W, H), x = c.getContext('2d');
-  const bg = i % 2 ? st.sec : st.accent;
-  rrect(x, 0, 0, W, H, 14); x.fillStyle = bg; x.fill();
-  x.save(); rrect(x, 0, 0, W, H, 14); x.clip();
-  x.strokeStyle = rgba('#000000', 0.18); x.lineWidth = 6; x.setLineDash([2, 10]); x.lineCap = 'round';
-  x.beginPath(); x.arc(W - 10, 10, 40, 0, Math.PI * 2); x.stroke(); x.setLineDash([]);
-  x.restore();
-  x.drawImage(img, 4, 2, 96, 96);
-  x.fillStyle = textOn(bg); x.textBaseline = 'middle';
-  fitFont(x, title, DISPLAY, 400, 34, 14, W - 118);
-  x.fillText(title, 108, H / 2 + 2);
+  const color = sty.panel(x, W, H, i, st);
+  drawArt(x, art, 6, 4, 92, sty);
+  x.textBaseline = 'middle';
+  fitFont(x, title, sty.font, sty.pixel ? 18 : 34, 10, W - 120);
+  if (sty === STYLES.neon) { x.shadowColor = color; x.shadowBlur = 10; }
+  x.fillStyle = color; x.fillText(title, 108, H / 2 + 2);
   return c;
 }
 
-function drawPause(st, charImg) {
+function drawPause(st, sty, art) {
   const W = 1920, H = 1080, c = newCanvas(W, H), x = c.getContext('2d');
-  const g = x.createRadialGradient(1400, 760, 50, 1400, 760, 1300); g.addColorStop(0, shade(st.bg, 0.12)); g.addColorStop(1, shade(st.bg, -0.35));
-  x.fillStyle = g; x.fillRect(0, 0, W, H);
-  dots(x, W, H, rgba(st.accent, 0.12), 64, 5);
-  x.drawImage(charImg, 1080, 260, 800, 800);
-
-  const left = 120; x.lineJoin = 'round';
-  x.font = `800 40px ${BODY}`; x.fillStyle = st.sec;
+  sty.bg(x, W, H, st);
+  drawArt(x, art, 1080, 240, 800, sty);
+  const left = 120;
+  x.textBaseline = 'alphabetic';
+  x.font = sty.pixel ? sty.font(26) : sty.body(38); x.fillStyle = sty.eyebrow(st);
   x.fillText(st.pseudo.toUpperCase() + ' · LE STREAM REPREND BIENTÔT', left, 360);
-  x.font = `400 300px ${DISPLAY}`;
-  x.lineWidth = 22; x.strokeStyle = '#1a1420';
-  x.strokeText('PAUSE', left, 640); x.fillStyle = st.accent; x.fillText('PAUSE', left, 640);
-  x.font = `700 58px ${BODY}`; x.fillStyle = textOn(st.bg);
-  wrap(x, st.pauseText, 900, 2).forEach((ln, i) => x.fillText(ln, left, 740 + i * 72));
-  [0.35, 0.55, 0.75, 0.9, 1].forEach((a, i) => { x.beginPath(); x.arc(left + 24 + i * 70, 900, 20, 0, Math.PI * 2); x.fillStyle = rgba(st.accent, a); x.fill(); });
+  const size = fitFont(x, 'PAUSE', sty.font, sty.pixel ? 180 : 300, 80, 900);
+  sty.title(x, 'PAUSE', left, 640, size, st);
+  x.font = sty.body(54); x.fillStyle = sty.text(st);
+  wrap(x, st.pauseText, 900, 2).forEach((ln, i) => x.fillText(ln, left, 750 + i * 70));
+  [0.35, 0.55, 0.75, 0.9, 1].forEach((a, i) => {
+    x.fillStyle = rgba(sty.dot(st), a);
+    if (sty.pixel) x.fillRect(left + i * 70, 880, 36, 36); else { x.beginPath(); x.arc(left + 20 + i * 70, 900, 20, 0, Math.PI * 2); x.fill(); }
+  });
   return c;
 }
 
@@ -278,38 +466,53 @@ function getState() {
     pauseText: $('#pauseText').value.trim(),
     bg: $('#bg').value, accent: $('#accent').value, sec: $('#sec').value,
     emoteNames: $$('.emote-name').map((i, k) => cleanName(i.value, EMOTES[k].name)),
-    panelTitles: $$('.panel-title').map((i, k) => i.value.trim() || PANELS[k].title)
+    panelTitles: $$('.panel-title').map((i, k) => i.value.trim() || PANELS[k].title),
+    zipStyles: $$('input[name=zipStyle]:checked').map(i => i.value),
+    pvStyle: ($('input[name=pvStyle]:checked') || {}).value || 'classique'
   };
 }
 
-/* ---------- Génération complète ---------- */
-async function buildAll(st) {
-  await Promise.all([
-    document.fonts.load(`400 80px "Bagel Fat One"`),
-    document.fonts.load(`700 30px Nunito`),
-    document.fonts.load(`800 30px Nunito`)
-  ]).catch(() => {});
+/* ---------- Génération d'un pack complet dans un style ---------- */
+let fontsReady = null;
+function loadFonts() {
+  if (!fontsReady) fontsReady = Promise.all([
+    '400 80px "Bagel Fat One"', '700 30px Nunito', '700 60px Fredoka', '600 30px Fredoka',
+    '900 60px Orbitron', '700 30px Orbitron', '400 40px "Press Start 2P"', '400 40px VT323', '400 60px Creepster'
+  ].map(f => document.fonts.load(f))).catch(() => {});
+  return fontsReady;
+}
 
+async function buildPack(st, key) {
+  await loadFonts();
+  const sty = STYLES[key];
   const emotes = [];
   for (const [k, e] of EMOTES.entries()) {
-    const img = await loadSVG(charSVG(e.expr, st, 448));
-    emotes.push({ name: st.emoteNames[k], sizes: { 112: drawScaled(img, 112), 56: drawScaled(img, 56), 28: drawScaled(img, 28) } });
+    const img = await loadSVG(charSVG(e.expr, st, sty, 448));
+    if (sty.pixel) {
+      const base = pixelBase(img, 28);
+      emotes.push({ name: st.emoteNames[k], sizes: { 112: drawScaled(base, 112, false), 56: drawScaled(base, 56, false), 28: base } });
+    } else {
+      emotes.push({ name: st.emoteNames[k], sizes: { 112: drawScaled(img, 112), 56: drawScaled(img, 56), 28: drawScaled(img, 28) } });
+    }
   }
   const badges = [];
   for (const [i, label] of TIERS.entries()) {
-    const img = await loadSVG(badgeSVG(i, st));
-    badges.push({ label, sizes: { 72: drawScaled(img, 72), 36: drawScaled(img, 36), 18: drawScaled(img, 18) } });
+    const img = await loadSVG(badgeSVG(i, st, sty));
+    if (sty.pixel) {
+      const base = pixelBase(img, 18);
+      badges.push({ label, sizes: { 72: drawScaled(base, 72, false), 36: drawScaled(base, 36, false), 18: base } });
+    } else {
+      badges.push({ label, sizes: { 72: drawScaled(img, 72), 36: drawScaled(img, 36), 18: drawScaled(img, 18) } });
+    }
   }
-  const big = expr => loadSVG(charSVG(expr, st, 900));
-  const banner = drawBanner(st, await big('happy'));
+  const banner = drawBanner(st, sty, await charArt('happy', st, sty, 860, 64));
   const panels = [];
-  for (const [i, p] of PANELS.entries()) panels.push({ title: st.panelTitles[i], canvas: drawPanel(st, st.panelTitles[i], await loadSVG(charSVG(p.expr, st, 240)), i) });
-  const pause = drawPause(st, await big('dodo'));
+  for (const [i, p] of PANELS.entries()) panels.push({ title: st.panelTitles[i], canvas: drawPanel(st, sty, st.panelTitles[i], await charArt(p.expr, st, sty, 240, 23), i) });
+  const pause = drawPause(st, sty, await charArt('dodo', st, sty, 900, 80));
   return { emotes, badges, banner, panels, pause };
 }
 
 /* ---------- Aperçu ---------- */
-function show(container, canvas) { container.replaceChildren(canvas); }
 function cell(bigCanvas, minis, label) {
   const d = document.createElement('div'); d.className = 'cell';
   const b = document.createElement('div'); b.className = 'big check'; b.append(bigCanvas);
@@ -321,32 +524,40 @@ let renderId = 0;
 async function render() {
   const id = ++renderId;
   const st = getState();
+  $('#pvLoading').hidden = false;
   try {
-    const A = await buildAll(st);
+    const A = await buildPack(st, st.pvStyle);
     if (id !== renderId) return;
-    show($('#pvBanner'), A.banner);
+    $('#pvBanner').replaceChildren(A.banner);
     $('#pvEmotes').replaceChildren(...A.emotes.map(e => cell(e.sizes[112], [e.sizes[56], e.sizes[28]], e.name)));
     $('#pvBadges').replaceChildren(...A.badges.map(b => cell(b.sizes[72], [b.sizes[36], b.sizes[18]], b.label)));
     $('#pvPanels').replaceChildren(...A.panels.map(p => p.canvas));
-    show($('#pvPause'), A.pause);
+    $('#pvPause').replaceChildren(A.pause);
     $$('.name-row canvas').forEach((cv, k) => { const x = cv.getContext('2d'); x.clearRect(0, 0, 28, 28); x.drawImage(A.emotes[k].sizes[28], 0, 0); });
     $('#status').textContent = '';
   } catch (err) {
     console.error(err);
     $('#status').textContent = 'Erreur d\'aperçu : ' + err.message;
+  } finally {
+    if (id === renderId) $('#pvLoading').hidden = true;
   }
 }
 let timer;
 const scheduleRender = () => { clearTimeout(timer); timer = setTimeout(render, 250); };
 
-/* ---------- ZIP ---------- */
+/* ---------- ZIP avec tous les styles ---------- */
 const slug = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'fichier';
 const toBlob = c => new Promise(r => c.toBlob(r, 'image/png'));
 
-function readme(st) {
-  return `PACK TWITCH — ${st.pseudo}
+function readme(st, keys) {
+  return `PACKS TWITCH — ${st.pseudo}
 
-CONTENU
+Ce ZIP contient le pack complet dans ${keys.length} style(s) :
+${keys.map(k => `- ${STYLES[k].folder}/  (${STYLES[k].label})`).join('\n')}
+
+Le client choisit son style préféré et n'installe QUE le dossier de ce style.
+
+DANS CHAQUE DOSSIER
 - banniere.png ......... bannière de profil (1200 x 480)
 - panneaux/ ............ panneaux de la page « À propos » (320 x 100)
 - emotes/112px, 56px, 28px ... emotes aux 3 tailles Twitch
@@ -369,24 +580,30 @@ dépendent du statut de la chaîne (Affilié, Partenaire).
 async function downloadZip() {
   const btn = $('#dl');
   if (typeof JSZip === 'undefined') { $('#status').textContent = 'La bibliothèque ZIP ne s\'est pas chargée. Vérifie ta connexion et recharge la page.'; return; }
-  btn.disabled = true; $('#status').textContent = 'Création du pack…';
+  const st = getState();
+  if (!st.zipStyles.length) { $('#status').textContent = 'Coche au moins un style à mettre dans le ZIP.'; return; }
+  btn.disabled = true;
   try {
-    const st = getState();
-    const A = await buildAll(st);
     const zip = new JSZip();
-    for (const e of A.emotes) for (const s of [112, 56, 28]) zip.file(`emotes/${s}px/${e.name}.png`, await toBlob(e.sizes[s]));
-    for (const [i, b] of A.badges.entries()) for (const s of [72, 36, 18]) zip.file(`badges/${i + 1}-${slug(b.label)}_${s}px.png`, await toBlob(b.sizes[s]));
-    zip.file('banniere.png', await toBlob(A.banner));
-    for (const [i, p] of A.panels.entries()) zip.file(`panneaux/${i + 1}-${slug(p.title)}.png`, await toBlob(p.canvas));
-    zip.file('ecran-pause.png', await toBlob(A.pause));
-    zip.file('LISEZMOI.txt', readme(st));
+    for (const [n, key] of st.zipStyles.entries()) {
+      $('#status').textContent = `Création du style ${n + 1}/${st.zipStyles.length} : ${STYLES[key].label}…`;
+      const A = await buildPack(st, key);
+      const dir = zip.folder(STYLES[key].folder);
+      for (const e of A.emotes) for (const s of [112, 56, 28]) dir.file(`emotes/${s}px/${e.name}.png`, await toBlob(e.sizes[s]));
+      for (const [i, b] of A.badges.entries()) for (const s of [72, 36, 18]) dir.file(`badges/${i + 1}-${slug(b.label)}_${s}px.png`, await toBlob(b.sizes[s]));
+      dir.file('banniere.png', await toBlob(A.banner));
+      for (const [i, p] of A.panels.entries()) dir.file(`panneaux/${i + 1}-${slug(p.title)}.png`, await toBlob(p.canvas));
+      dir.file('ecran-pause.png', await toBlob(A.pause));
+    }
+    zip.file('LISEZMOI.txt', readme(st, st.zipStyles));
+    $('#status').textContent = 'Compression du ZIP…';
     const blob = await zip.generateAsync({ type: 'blob' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `pack-twitch-${slug(st.pseudo)}.zip`;
+    a.download = `packs-twitch-${slug(st.pseudo)}.zip`;
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    $('#status').textContent = `Pack téléchargé : ${a.download}`;
+    $('#status').textContent = `Packs téléchargés : ${a.download} (${st.zipStyles.length} styles)`;
   } catch (err) {
     console.error(err);
     $('#status').textContent = 'Erreur pendant la création du ZIP : ' + err.message;
@@ -421,13 +638,21 @@ function init() {
     `<div class="name-row"><canvas width="28" height="28" aria-hidden="true"></canvas><input type="text" class="emote-name" id="em${k}" value="${e.name}" maxlength="20" aria-label="Nom de l'emote ${k + 1}"></div>`).join('');
   $('#panelNames').innerHTML = PANELS.map((p, k) =>
     `<input type="text" class="panel-title" id="pn${k}" value="${p.title}" maxlength="22" aria-label="Titre du panneau ${k + 1}">`).join('');
+  $('#zipStyles').innerHTML = STYLE_KEYS.map(k =>
+    `<label><input type="checkbox" name="zipStyle" value="${k}" checked><span>${STYLES[k].label}</span></label>`).join('');
+  $('#pvTabs').innerHTML = STYLE_KEYS.map((k, i) =>
+    `<label><input type="radio" name="pvStyle" value="${k}"${i === 0 ? ' checked' : ''}><span>${STYLES[k].label}</span></label>`).join('');
 
   const syncMode = () => {
     const img = $('input[name=mode]:checked').value === 'image';
     $('#animalFields').hidden = img; $('#imageFields').hidden = !img;
+    const n = $$('input[name=zipStyle]:checked').length;
+    $('#dl').textContent = n > 1 ? `Télécharger les ${n} packs (ZIP)` : 'Télécharger le pack (ZIP)';
   };
-  $('#form').addEventListener('input', () => { syncMode(); scheduleRender(); });
-  $('#form').addEventListener('change', () => { syncMode(); scheduleRender(); });
+  const onChange = e => { syncMode(); if (e && e.target && e.target.name === 'zipStyle') return; scheduleRender(); };
+  $('#form').addEventListener('input', onChange);
+  $('#form').addEventListener('change', onChange);
+  $('#pvTabs').addEventListener('change', () => render());
   $('#upload').addEventListener('change', e => handleUpload(e.target.files[0]));
   $('#dl').addEventListener('click', downloadZip);
   syncMode();
