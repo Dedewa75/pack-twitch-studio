@@ -451,6 +451,138 @@ function drawPause(st, sty, art) {
   return c;
 }
 
+/* ---------- Logos ---------- */
+function logoColors(st, sty) {
+  if (sty === STYLES.kawaii) return { main: mix(st.accent, '#c4557e', 0.35), second: mix(st.sec, '#ffffff', 0.35), dark: '#6a4a72', light: '#ffffff' };
+  if (sty === STYLES.neon) return { main: bright(st.accent, '#ff3df2'), second: bright(st.sec, '#3df5ff'), dark: '#0d0718', light: '#ffffff', glow: true };
+  if (sty === STYLES.horreur) return { main: bright(st.accent, '#c8f04a'), second: '#8a0b0b', dark: '#0e0808', light: '#e6dccb' };
+  if (sty === STYLES.pixel) return { main: st.accent, second: st.sec, dark: '#000000', light: '#ffffff' };
+  return { main: st.accent, second: st.sec, dark: '#1a1420', light: '#ffffff' };
+}
+function glowOn(x, K, color, blur) { if (K.glow) { x.shadowColor = color; x.shadowBlur = blur; } }
+function glowOff(x) { x.shadowBlur = 0; x.shadowColor = 'transparent'; }
+/* Contour épais autour du personnage (effet autocollant) */
+function outlined(art, size, color, r, sty) {
+  const c = newCanvas(size + r * 2, size + r * 2), x = c.getContext('2d');
+  x.imageSmoothingEnabled = !sty.pixel;
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 16) x.drawImage(art, r + Math.cos(a) * r, r + Math.sin(a) * r, size, size);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+  x.globalCompositeOperation = 'source-over'; x.drawImage(art, r, r, size, size);
+  return c;
+}
+function strokeFill(x, t, X, Y, K, fill, sw) {
+  x.lineJoin = 'round'; x.lineWidth = sw; x.strokeStyle = K.dark;
+  glowOn(x, K, fill, sw * 1.5); x.strokeText(t, X, Y); glowOff(x);
+  x.fillStyle = fill; x.fillText(t, X, Y);
+}
+function arcText(x, text, cx, cy, r, top, color) {
+  const chars = [...text], gap = 4;
+  const widths = chars.map(ch => x.measureText(ch).width + gap);
+  const total = widths.reduce((a, b) => a + b, 0);
+  let acc = 0;
+  x.fillStyle = color; x.textAlign = 'center'; x.textBaseline = 'middle';
+  chars.forEach((ch, i) => {
+    const mid = (acc + widths[i] / 2 - total / 2) / r;
+    const a = top ? -Math.PI / 2 + mid : Math.PI / 2 - mid;
+    x.save(); x.translate(cx + r * Math.cos(a), cy + r * Math.sin(a)); x.rotate(top ? a + Math.PI / 2 : a - Math.PI / 2);
+    x.fillText(ch, 0, 0); x.restore();
+    acc += widths[i];
+  });
+  x.textAlign = 'start'; x.textBaseline = 'alphabetic';
+}
+function initial(st) { const m = st.pseudo.match(/[A-Za-z0-9]/); return m ? m[0].toUpperCase() : 'T'; }
+
+function drawLogos(st, sty, art) {
+  const K = logoColors(st, sty), out = [];
+  const mk = (w, h) => { const c = newCanvas(w, h); return [c, c.getContext('2d')]; };
+
+  // 1. Bouclier
+  {
+    const [c, x] = mk(1000, 1000);
+    const shield = () => { x.beginPath(); x.moveTo(500, 60); x.lineTo(880, 160); x.lineTo(860, 560); x.quadraticCurveTo(820, 820, 500, 950); x.quadraticCurveTo(180, 820, 140, 560); x.lineTo(120, 160); x.closePath(); };
+    shield(); x.fillStyle = K.dark; x.fill();
+    glowOn(x, K, K.main, 30); x.lineWidth = 30; x.strokeStyle = K.main; x.lineJoin = 'round'; x.stroke(); glowOff(x);
+    x.save(); x.translate(500, 505); x.scale(0.88, 0.88); x.translate(-500, -505); shield(); x.lineWidth = 12; x.strokeStyle = K.second; x.stroke(); x.restore();
+    drawArt(x, art, 265, 150, 470, sty);
+    x.beginPath(); x.moveTo(40, 650); x.lineTo(960, 650); x.lineTo(920, 715); x.lineTo(960, 780); x.lineTo(40, 780); x.lineTo(80, 715); x.closePath();
+    x.fillStyle = K.main; glowOn(x, K, K.main, 25); x.fill(); glowOff(x); x.lineWidth = 10; x.strokeStyle = K.dark; x.stroke();
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    fitFont(x, st.pseudo.toUpperCase(), sty.font, 96, 30, 760);
+    x.fillStyle = textOn(K.main); x.fillText(st.pseudo.toUpperCase(), 500, 718);
+    x.textAlign = 'start'; x.textBaseline = 'alphabetic';
+    out.push({ name: 'bouclier', canvas: c });
+  }
+  // 2. Cercle
+  {
+    const [c, x] = mk(1000, 1000);
+    x.beginPath(); x.arc(500, 500, 460, 0, Math.PI * 2); x.fillStyle = K.dark; x.fill();
+    glowOn(x, K, K.main, 30); x.lineWidth = 26; x.strokeStyle = K.main; x.stroke(); glowOff(x);
+    x.beginPath(); x.arc(500, 500, 310, 0, Math.PI * 2); x.fillStyle = K.second; x.fill(); x.lineWidth = 14; x.strokeStyle = K.dark; x.stroke();
+    drawArt(x, art, 230, 220, 540, sty);
+    fitFont(x, st.pseudo.toUpperCase(), sty.font, 80, 30, 900);
+    arcText(x, st.pseudo.toUpperCase(), 500, 500, 385, true, K.main);
+    x.font = sty.pixel ? sty.font(34) : sty.body(52);
+    arcText(x, 'STREAMER TWITCH', 500, 500, 385, false, K.light);
+    [[150, 500], [850, 500]].forEach(([sx, sy]) => { x.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 14 : 34, a = -Math.PI / 2 + k * Math.PI / 5; x.lineTo(sx + r * Math.cos(a), sy + r * Math.sin(a)); } x.closePath(); x.fillStyle = K.second; x.fill(); });
+    out.push({ name: 'cercle', canvas: c });
+  }
+  // 3. Esport (hexagone + texte incliné)
+  {
+    const [c, x] = mk(1000, 1000);
+    const hex = (r) => { x.beginPath(); for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * Math.PI / 3; x.lineTo(500 + r * Math.cos(a), 380 + r * Math.sin(a)); } x.closePath(); };
+    hex(330); x.fillStyle = K.second; x.fill(); glowOn(x, K, K.second, 30); x.lineWidth = 24; x.strokeStyle = K.dark; x.stroke(); glowOff(x);
+    hex(290); x.lineWidth = 8; x.strokeStyle = K.light; x.globalAlpha = 0.6; x.stroke(); x.globalAlpha = 1;
+    drawArt(x, art, 250, 120, 500, sty);
+    x.save(); x.translate(500, 860); x.transform(1, 0, -0.22, 1, 0, 0);
+    x.fillStyle = K.main; x.fillRect(-420, 36, 840, 26);
+    x.textAlign = 'center';
+    fitFont(x, st.pseudo.toUpperCase(), sty.font, 150, 40, 860);
+    strokeFill(x, st.pseudo.toUpperCase(), 0, 0, K, K.main, 22);
+    x.restore();
+    out.push({ name: 'esport', canvas: c });
+  }
+  // 4. Horizontal (mascotte + nom)
+  {
+    const [c, x] = mk(1600, 700);
+    x.drawImage(outlined(art, 560, K.light, 16, sty), 30, 50);
+    fitFont(x, st.pseudo, sty.font, 180, 40, 880);
+    strokeFill(x, st.pseudo, 640, 390, K, K.main, 20);
+    x.font = sty.pixel ? sty.font(28) : sty.body(44);
+    const tag = 'LIVE SUR TWITCH', tw = x.measureText(tag).width + 60;
+    rrect(x, 650, 450, tw, 80, sty.pixel ? 0 : 40); x.fillStyle = K.second; glowOn(x, K, K.second, 20); x.fill(); glowOff(x);
+    x.fillStyle = textOn(K.second); x.textBaseline = 'middle'; x.fillText(tag, 680, 492); x.textBaseline = 'alphabetic';
+    out.push({ name: 'horizontal', canvas: c });
+  }
+  // 5. Monogramme
+  {
+    const [c, x] = mk(1000, 1000);
+    rrect(x, 80, 80, 840, 840, sty.pixel ? 0 : 160); x.fillStyle = K.dark; x.fill();
+    glowOn(x, K, K.second, 30); x.lineWidth = 24; x.strokeStyle = K.second; x.stroke(); glowOff(x);
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = sty.font(sty.pixel ? 520 : 720);
+    strokeFill(x, initial(st), 470, 520, K, K.main, 28);
+    x.textAlign = 'start'; x.textBaseline = 'alphabetic';
+    x.drawImage(outlined(art, 440, K.dark, 14, sty), 520, 500);
+    out.push({ name: 'monogramme', canvas: c });
+  }
+  // 6. Autocollant
+  {
+    const [c, x] = mk(1000, 1000);
+    const o = outlined(art, 720, K.light, 26, sty);
+    x.drawImage(outlined(o, o.width, K.dark, 8, { pixel: false }), 104, 20);
+    x.save(); x.translate(500, 850); x.rotate(-0.07);
+    x.font = sty.font(10);
+    const size = fitFont(x, st.pseudo, sty.font, 110, 30, 760);
+    const w = x.measureText(st.pseudo).width + 90, h = size + 70;
+    rrect(x, -w / 2, -h / 2, w, h, sty.pixel ? 0 : 30); x.fillStyle = K.main; glowOn(x, K, K.main, 25); x.fill(); glowOff(x);
+    x.lineWidth = 12; x.strokeStyle = K.dark; x.stroke();
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = textOn(K.main); x.fillText(st.pseudo, 0, 6);
+    x.restore();
+    out.push({ name: 'autocollant', canvas: c });
+  }
+  return out;
+}
+
 /* ---------- Lecture du formulaire ---------- */
 function cleanName(v, fallback) { const s = (v || '').replace(/[^A-Za-z0-9]/g, ''); return s || fallback; }
 function getState() {
@@ -509,7 +641,8 @@ async function buildPack(st, key) {
   const panels = [];
   for (const [i, p] of PANELS.entries()) panels.push({ title: st.panelTitles[i], canvas: drawPanel(st, sty, st.panelTitles[i], await charArt(p.expr, st, sty, 240, 23), i) });
   const pause = drawPause(st, sty, await charArt('dodo', st, sty, 900, 80));
-  return { emotes, badges, banner, panels, pause };
+  const logos = drawLogos(st, sty, await charArt('happy', st, sty, 900, 56));
+  return { emotes, badges, banner, panels, pause, logos };
 }
 
 /* ---------- Aperçu ---------- */
@@ -533,6 +666,7 @@ async function render() {
     $('#pvBadges').replaceChildren(...A.badges.map(b => cell(b.sizes[72], [b.sizes[36], b.sizes[18]], b.label)));
     $('#pvPanels').replaceChildren(...A.panels.map(p => p.canvas));
     $('#pvPause').replaceChildren(A.pause);
+    $('#pvLogos').replaceChildren(...A.logos.map(l => { const d = document.createElement('div'); d.className = 'logo-cell check' + (l.name === 'horizontal' ? ' wide' : ''); d.append(l.canvas); const t = document.createElement('b'); t.textContent = l.name; d.append(t); return d; }));
     $$('.name-row canvas').forEach((cv, k) => { const x = cv.getContext('2d'); x.clearRect(0, 0, 28, 28); x.drawImage(A.emotes[k].sizes[28], 0, 0); });
     $('#status').textContent = '';
   } catch (err) {
@@ -563,6 +697,7 @@ DANS CHAQUE DOSSIER
 - emotes/112px, 56px, 28px ... emotes aux 3 tailles Twitch
 - badges/ .............. badges d'abonné (72, 36, 18 px)
 - ecran-pause.png ...... écran pause pour OBS (1920 x 1080)
+- logos/ ............... 6 logos de chaîne (PNG transparent) : photo de profil, réseaux, overlays
 
 INSTALLATION
 1. Bannière : Tableau de bord des créateurs > Paramètres > Chaîne > Image de marque > Bannière de profil.
@@ -594,6 +729,7 @@ async function downloadZip() {
       dir.file('banniere.png', await toBlob(A.banner));
       for (const [i, p] of A.panels.entries()) dir.file(`panneaux/${i + 1}-${slug(p.title)}.png`, await toBlob(p.canvas));
       dir.file('ecran-pause.png', await toBlob(A.pause));
+      for (const [i, l] of A.logos.entries()) dir.file(`logos/${i + 1}-${l.name}.png`, await toBlob(l.canvas));
     }
     zip.file('LISEZMOI.txt', readme(st, st.zipStyles));
     $('#status').textContent = 'Compression du ZIP…';
