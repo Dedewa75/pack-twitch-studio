@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pack Twitch Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Nunito:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>Pack Twitch Studio</h1>
+  <p>Remplis les infos du client, vérifie l'aperçu, télécharge le pack en ZIP.</p>
+</header>
+
+<main class="layout">
+  <form id="form" class="side" autocomplete="off">
+
+    <fieldset>
+      <legend>1. Personnage</legend>
+      <div class="seg">
+        <label><input type="radio" name="mode" value="animal" checked> Animal dessiné</label>
+        <label><input type="radio" name="mode" value="image"> Image du client</label>
+      </div>
+
+      <div id="animalFields" class="stack">
+        <div class="animals">
+          <label><input type="radio" name="animal" value="hamster" checked><span>Hamster</span></label>
+          <label><input type="radio" name="animal" value="chat"><span>Chat</span></label>
+          <label><input type="radio" name="animal" value="chien"><span>Chien</span></label>
+          <label><input type="radio" name="animal" value="renard"><span>Renard</span></label>
+        </div>
+        <div class="row2">
+          <label class="field">Pelage <input type="color" id="fur" value="#f5b26b"></label>
+          <label class="field">Ventre <input type="color" id="belly" value="#fff1dc"></label>
+        </div>
+      </div>
+
+      <div id="imageFields" class="stack" hidden>
+        <label class="field">Image de la mascotte (PNG transparent conseillé)
+          <input type="file" id="upload" accept="image/png,image/webp,image/jpeg">
+        </label>
+        <p class="hint" id="uploadInfo">Aucune image choisie.</p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. Infos de la chaîne</legend>
+      <label class="field">Pseudo <input type="text" id="pseudo" value="CaptainCroquette" maxlength="24"></label>
+      <label class="field">Slogan <input type="text" id="slogan" value="Je rate les virages pour que vous n'ayez pas à le faire." maxlength="70"></label>
+      <div class="field">Jours de stream
+        <div class="days">
+          <label><input type="checkbox" name="day" value="LUN" checked><span>Lun</span></label>
+          <label><input type="checkbox" name="day" value="MAR"><span>Mar</span></label>
+          <label><input type="checkbox" name="day" value="MER" checked><span>Mer</span></label>
+          <label><input type="checkbox" name="day" value="JEU"><span>Jeu</span></label>
+          <label><input type="checkbox" name="day" value="VEN" checked><span>Ven</span></label>
+          <label><input type="checkbox" name="day" value="SAM"><span>Sam</span></label>
+          <label><input type="checkbox" name="day" value="DIM"><span>Dim</span></label>
+        </div>
+      </div>
+      <label class="field">Heure <input type="text" id="heure" value="20h" maxlength="12"></label>
+      <label class="field">Texte de l'écran pause <input type="text" id="pauseText" value="Je reviens vite, ne touchez à rien !" maxlength="50"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. Couleurs</legend>
+      <div class="row3">
+        <label class="field">Fond <input type="color" id="bg" value="#241a2e"></label>
+        <label class="field">Principale <input type="color" id="accent" value="#ffb547"></label>
+        <label class="field">Secondaire <input type="color" id="sec" value="#5ee6c1"></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. Noms des emotes</legend>
+      <p class="hint">Lettres et chiffres seulement. Twitch ajoute le préfixe de la chaîne tout seul.</p>
+      <div id="emoteNames" class="names"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>5. Titres des panneaux</legend>
+      <div id="panelNames" class="stack"></div>
+    </fieldset>
+
+    <div class="actions">
+      <button type="button" id="dl">Télécharger le pack (ZIP)</button>
+      <p class="hint" id="status" role="status"></p>
+    </div>
+  </form>
+
+  <section class="preview" aria-label="Aperçu du pack">
+    <h2>Bannière <small>1200 × 480</small></h2>
+    <div id="pvBanner" class="frame"></div>
+
+    <h2>Emotes <small>112 · 56 · 28 px</small></h2>
+    <div id="pvEmotes" class="grid-emotes"></div>
+
+    <h2>Badges d'abonné <small>72 · 36 · 18 px</small></h2>
+    <div id="pvBadges" class="grid-badges"></div>
+
+    <h2>Panneaux <small>320 × 100</small></h2>
+    <div id="pvPanels" class="grid-panels"></div>
+
+    <h2>Écran pause <small>1920 × 1080</small></h2>
+    <div id="pvPause" class="frame"></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
